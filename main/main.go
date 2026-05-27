@@ -47,7 +47,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	for _, hdr := range req.Headers[:req.HdrsNum] {
 		println(string(hdr.K), ":", string(hdr.V))
 	}
-	if req.ContentLenth != 0 {
+	if req.Body != nil {
 		println("body:", string(req.Body))
 	}
 
