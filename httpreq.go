@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	rnrnStr = "\r\n\r\n"
-	rnrnLen = len(rnrnStr)
-	clKStr  = "\r\nContent-Length: "
-	clKLen  = len(clKStr)
+	rnrnStr    = "\r\n\r\n"
+	rnrnLen    = len(rnrnStr)
+	clKStr     = "\r\nContent-Length: "
+	clKLen     = len(clKStr)
+	maxHdrsNum = 32
 )
 
 var (
@@ -23,10 +24,11 @@ type KeyVal struct {
 }
 
 type Request struct {
-	Method, Path, Proto   []byte
-	Headers               [32]KeyVal
-	HdrsNum, ContentLenth int
-	Body                  []byte
+	Method, Path, Proto []byte
+	Headers             [maxHdrsNum]KeyVal
+	HdrsNum             int
+	//ContentLen          int
+	Body []byte
 }
 
 // ParseHttpRequest memproses buffer secara zero-alloc.
@@ -59,7 +61,7 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 		}
 		if cl > 0 {
 			reqLen = totalHdrLen + cl
-			req.ContentLenth = cl
+			//req.ContentLen = cl
 			req.Body = buf[totalHdrLen:reqLen]
 		}
 	} else {
@@ -91,10 +93,10 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 	reqLineEnd := bytes.IndexByte(hdrBuf[sp2:], '\r') + sp2
 	req.Proto = hdrBuf[sp2:reqLineEnd]
 
-	// 4. Parsing Seluruh Headers (Key otomatis lowercase dari cloudflared)
+	// 4. Parsing Seluruh Headers (Key otomatis TitleCase dari cloudflared)
 	remainHdrs := hdrBuf[reqLineEnd+2:]
 	hdrIdx := 0
-	for remainHdrs[0] != '\r' && hdrIdx < 32 {
+	for remainHdrs[0] != '\r' && hdrIdx < maxHdrsNum {
 		hdrEnd := bytes.IndexByte(remainHdrs, '\r')
 		hdrKV := remainHdrs[:hdrEnd]
 		colonIdx := bytes.IndexByte(hdrKV, ':')
