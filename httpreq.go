@@ -6,17 +6,18 @@ import (
 )
 
 const (
-	rnrnStr    = "\r\n\r\n"
-	rnrnLen    = len(rnrnStr)
-	clKStr     = "\r\nContent-Length: "
-	clKLen     = len(clKStr)
-	maxHdrsNum = 32
+	rnrnStr      = "\r\n\r\n"
+	rnrnLen      = len(rnrnStr)
+	clKStr       = "\r\nContent-Length: "
+	clKLen       = len(clKStr)
+	hdrKVSparatr = ':'
+	maxHdrsNum   = 32
 )
 
 var (
 	rnrn          = []byte(rnrnStr)
 	ErrBadRequest = errors.New("bad request")
-	clK           = []byte(clKStr)
+	clKey         = []byte(clKStr)
 )
 
 type KeyVal struct {
@@ -31,36 +32,32 @@ type Request struct {
 	Body []byte
 }
 
-// ParseHttpRequest memproses buffer secara zero-alloc.
-// Mengembalikan (bytesProcessed, incomplete, error).
+// func Parse Http Request memproses buffer secara zero-alloc.
+// Mengembalikan (bytesProcessed, incomplete, err).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
 func Parse(buf []byte, req *Request) (int, bool, error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
-	hdrEnd := bytes.Index(buf, []byte(rnrn))
+	hdrEnd := bytes.Index(buf, rnrn)
 	if hdrEnd == -1 {
 		return 0, true, nil // Incomplete data
 	}
-
 	totalHdrLen := hdrEnd + rnrnLen
 	hdrBuf := buf[:totalHdrLen]
 
-	// 2. Cari content-length (Pasti lowercase karena cloudflared)
-	clKIdx := bytes.Index(hdrBuf, clK)
-	var (
-		cl     int
-		reqLen int
-	)
+	var reqLen int
+	// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
+	clKIdx := bytes.Index(hdrBuf, clKey)
 	if clKIdx != -1 {
 		clVBgn := clKIdx + clKLen
 		clVEnd := bytes.IndexByte(hdrBuf[clVBgn:], '\r') + clVBgn
-		cl = parseUintBytes(hdrBuf[clVBgn:clVEnd])
+		cl := parseUintBytes(hdrBuf[clVBgn:clVEnd])
 
 		// Pastikan seluruh Body sudah masuk di buffer gnet
+		reqLen = totalHdrLen + cl
 		if len(buf) < reqLen {
 			return 0, true, nil // Incomplete data
 		}
 		if cl > 0 {
-			reqLen = totalHdrLen + cl
 			//req.ContentLen = cl
 			req.Body = buf[totalHdrLen:reqLen]
 		}
@@ -78,7 +75,7 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 	req.Method = hdrBuf[:sp1]
 
 	// Path
-	sp1++
+	sp1++ //skip ' '
 	sp2 := bytes.IndexByte(
 		hdrBuf[sp1:], ' ',
 	)
@@ -89,17 +86,17 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 	req.Path = hdrBuf[sp1:sp2]
 
 	// Protocol
-	sp2++
+	sp2++ //skip ' '
 	reqLineEnd := bytes.IndexByte(hdrBuf[sp2:], '\r') + sp2
 	req.Proto = hdrBuf[sp2:reqLineEnd]
 
-	// 4. Parsing Seluruh Headers (Key otomatis TitleCase dari cloudflared)
+	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	remainHdrs := hdrBuf[reqLineEnd+2:]
 	hdrIdx := 0
 	for remainHdrs[0] != '\r' && hdrIdx < maxHdrsNum {
 		hdrEnd := bytes.IndexByte(remainHdrs, '\r')
 		hdrKV := remainHdrs[:hdrEnd]
-		colonIdx := bytes.IndexByte(hdrKV, ':')
+		colonIdx := bytes.IndexByte(hdrKV, hdrKVSparatr)
 		if colonIdx != -1 {
 			req.Headers[hdrIdx] = KeyVal{
 				K: hdrKV[:colonIdx],
@@ -113,11 +110,11 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 	return reqLen, false, nil
 }
 
-func parseUintBytes(b []byte) (val int) {
-	for _, c := range b {
-		if c >= '0' || c <= '9' {
-			val = val*10 + int(c-'0')
+func parseUintBytes(bs []byte) (val int) {
+	for _, chr := range bs {
+		if chr >= '0' || chr <= '9' {
+			val = val*10 + int(chr-'0')
 		}
 	}
-	return val
+	return
 }
