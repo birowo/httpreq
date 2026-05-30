@@ -112,7 +112,7 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 }
 func parseUintBytes(bs []byte) (val int) {
 	for _, chr := range bs {
-		if chr >= '0' || chr <= '9' {
+		if chr >= '0' && chr <= '9' {
 			val = val*10 + int(chr-'0')
 		}
 	}
