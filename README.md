@@ -5,4 +5,4 @@ http request parser
 
 ![](https://github.com/birowo/httpreq/blob/main/main/post.jpg)
 
-![](https://github.com/birowo/httpreq/blob/main/httpreq_escape_analisys.jpg)
+![](https://github.com/birowo/httpreq/blob/main/httpreq_escape_analysis.jpg)
