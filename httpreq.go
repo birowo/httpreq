@@ -27,7 +27,7 @@ type KeyVal struct {
 	K, V []byte
 }
 
-type Request struct {
+type request struct {
 	Method, Path, Proto []byte
 	Headers             [maxHdrsNum]KeyVal
 	HdrsNum             int
@@ -38,13 +38,14 @@ type Request struct {
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (bytesProcessed, incomplete, err).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, req *Request) (int, bool, error) {
+func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrEnd := bytes.Index(buf, rnrn)
 	if hdrEnd == -1 {
-		return 0, true, nil // Incomplete data
+		incomplete = true
+		return // Incomplete data
 	}
-	reqLen := hdrEnd + rnrnLen
+	reqLen = hdrEnd + rnrnLen
 	hdrBuf := buf[:reqLen]
 
 	// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
@@ -57,7 +58,8 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 		bgn = reqLen
 		reqLen += cl
 		if len(buf) < reqLen {
-			return 0, true, nil // Incomplete data
+			incomplete = true
+			return // Incomplete data
 		}
 		if cl > 0 {
 			//req.ContentLen = cl
@@ -72,7 +74,8 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 	reqLine := hdrBuf[:reqLineEnd]
 	sp1 := bytes.IndexByte(reqLine, ' ')
 	if sp1 == -1 {
-		return 0, false, ErrBadRequest
+		err = ErrBadRequest
+		return
 	}
 	req.Method = reqLine[:sp1]
 
@@ -82,7 +85,8 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 		reqLine[sp1:], ' ',
 	)
 	if sp2 == -1 {
-		return 0, false, ErrBadRequest
+		err = ErrBadRequest
+		return
 	}
 	sp2 += sp1
 	req.Path = reqLine[sp1:sp2]
@@ -108,7 +112,7 @@ func Parse(buf []byte, req *Request) (int, bool, error) {
 		bgn = end + rnLen
 	}
 	req.HdrsNum = hdrIdx
-	return reqLen, false, nil
+	return
 }
 func parseUintBytes(bs []byte) (val int) {
 	for _, chr := range bs {
