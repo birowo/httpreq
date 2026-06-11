@@ -38,7 +38,7 @@ type request struct {
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, isBody bool) (req request, reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn)
 	if hdrLen == -1 {
@@ -48,13 +48,13 @@ func Parse(buf []byte, isBody bool) (req request, reqLen int, incomplete bool, e
 	hdrEnd := hdrLen + rnrnLen
 	reqLen = hdrEnd
 
-	if isBody {
+	if bodyMax > 0 {
 		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
 		clIdx := bytes.Index(buf[:hdrLen], clKey)
 		if clIdx != -1 {
 			bgn := clIdx + clKeyLen
 			var cl int
-			cl, err = uintBytes(buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)])
+			cl, err = uintBytes(buf[bgn:bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)], bodyMax)
 			if err != nil {
 				return
 			}
@@ -127,9 +127,9 @@ func Parse(buf []byte, isBody bool) (req request, reqLen int, incomplete bool, e
 	req.HdrsNum = hdrIdx
 	return
 }
-func uintBytes(bs []byte) (val int, err error) {
-	for i, chr := range bs {
-		if i < 6 && chr >= '0' && chr <= '9' {
+func uintBytes(bs []byte, max int) (val int, err error) {
+	for _, chr := range bs {
+		if val < max && chr >= '0' && chr <= '9' {
 			val = val*10 + int(chr-'0')
 		} else {
 			err = ErrBadRequest
