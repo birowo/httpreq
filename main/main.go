@@ -22,7 +22,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	buf, _ := c.Peek(c.InboundBuffered())
 
 	// 2. Siapkan struct Request di stack (zero-alloc)
-	req, consumed, incomplete, err := httpreq.Parse(buf)
+	req, consumed, incomplete, err := httpreq.Parse(buf, true)
 
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {

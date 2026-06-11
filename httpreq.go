@@ -38,7 +38,7 @@ type request struct {
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, isBody bool) (req request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn)
 	if hdrLen == -1 {
@@ -48,25 +48,27 @@ func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
 	hdrEnd := hdrLen + rnrnLen
 	reqLen = hdrEnd
 
-	// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
-	clIdx := bytes.Index(buf[:hdrLen], clKey)
-	if clIdx != -1 {
-		bgn := clIdx + clKeyLen
-		var cl int
-		cl, err = uintBytes(buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)])
-		if err != nil {
-			return
-		}
+	if isBody {
+		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
+		clIdx := bytes.Index(buf[:hdrLen], clKey)
+		if clIdx != -1 {
+			bgn := clIdx + clKeyLen
+			var cl int
+			cl, err = uintBytes(buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)])
+			if err != nil {
+				return
+			}
 
-		// Pastikan seluruh Body sudah masuk di buffer gnet
-		reqLen += cl
-		if len(buf) < reqLen {
-			incomplete = true
-			return // Incomplete data
-		}
-		if cl > 0 {
-			//req.ContentLen = cl
-			req.Body = buf[hdrEnd:reqLen]
+			// Pastikan seluruh Body sudah masuk di buffer gnet
+			reqLen += cl
+			if len(buf) < reqLen {
+				incomplete = true
+				return // Incomplete data
+			}
+			if cl > 0 {
+				//req.ContentLen = cl
+				req.Body = buf[hdrEnd:reqLen]
+			}
 		}
 	}
 
