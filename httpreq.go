@@ -52,7 +52,11 @@ func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
 	clIdx := bytes.Index(buf[:hdrLen], clKey)
 	if clIdx != -1 {
 		bgn := clIdx + clKeyLen
-		cl := parseUintBytes(buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)])
+		var cl int
+		cl, err = uintBytes(buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)])
+		if err != nil {
+			return
+		}
 
 		// Pastikan seluruh Body sudah masuk di buffer gnet
 		reqLen += cl
@@ -121,10 +125,12 @@ func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
 	req.HdrsNum = hdrIdx
 	return
 }
-func parseUintBytes(bs []byte) (val int) {
-	for _, chr := range bs {
-		if chr >= '0' && chr <= '9' {
+func uintBytes(bs []byte) (val int, err error) {
+	for i, chr := range bs {
+		if i < 6 && chr >= '0' && chr <= '9' {
 			val = val*10 + int(chr-'0')
+		} else {
+			err = ErrBadRequest
 		}
 	}
 	return
