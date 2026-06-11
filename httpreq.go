@@ -131,6 +131,7 @@ func uintBytes(bs []byte) (val int, err error) {
 			val = val*10 + int(chr-'0')
 		} else {
 			err = ErrBadRequest
+			return
 		}
 	}
 	return
