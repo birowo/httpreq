@@ -6,21 +6,21 @@ import (
 )
 
 const (
-	rnrnStr         = "\r\n\r\n"
-	rnrnLen         = len(rnrnStr)
-	rn              = '\r'
-	rnLen           = 2
-	clKStr          = "\r\nContent-Length: "
-	clKeyLen        = len(clKStr)
-	hdrKVSparatr    = ':'
-	hdrKVSparatrLen = 2
-	maxHdrsNum      = 32
+	rnrnStr       = "\r\n\r\n"
+	rnrnLen       = len(rnrnStr)
+	rn            = '\r'
+	rnLen         = 2
+	clKeyStr      = "\r\nContent-Length: "
+	clKeyLen      = len(clKeyStr)
+	hdrSparatr    = ':'
+	hdrSparatrLen = 2
+	hdrsMax       = 32
 )
 
 var (
 	rnrn          = []byte(rnrnStr)
 	ErrBadRequest = errors.New("bad request")
-	clKey         = []byte(clKStr)
+	clKey         = []byte(clKeyStr)
 )
 
 type kv struct {
@@ -29,7 +29,7 @@ type kv struct {
 
 type request struct {
 	Method, Path, Proto []byte
-	Headers             [maxHdrsNum]kv
+	Headers             [hdrsMax]kv
 	HdrsNum             int
 	//ContentLen          int
 	Body []byte
@@ -97,22 +97,25 @@ func Parse(buf []byte) (req request, reqLen int, incomplete bool, err error) {
 	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	kBgn := reqLineEnd + rnLen
 	hdrIdx := 0
-	var vEnd int
-	for kBgn < hdrLen && hdrIdx < maxHdrsNum {
-		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrKVSparatr)
+	for kBgn < hdrLen {
+		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
 		if kEnd == -1 {
 			err = ErrBadRequest
 			return
 		}
 		kEnd += kBgn
-		vBgn := kEnd + hdrKVSparatrLen
-		vEnd = bytes.IndexByte(buf[vBgn:hdrEnd], rn) + vBgn
+		vBgn := kEnd + hdrSparatrLen
+		vEnd := bytes.IndexByte(buf[vBgn:hdrEnd], rn) + vBgn
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
 		req.Headers[hdrIdx] = kv{
 			Key: buf[kBgn:kEnd],
 			Val: buf[vBgn:vEnd],
 		}
 		hdrIdx++
+		if hdrIdx == hdrsMax {
+			err = ErrBadRequest
+			return
+		}
 		kBgn = vEnd + rnLen
 	}
 	req.HdrsNum = hdrIdx
