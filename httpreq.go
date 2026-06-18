@@ -28,9 +28,9 @@ type kv struct {
 }
 
 type request struct {
-	Method, Path, Proto []byte
-	Headers             [hdrsMax]kv
-	HdrsNum             int
+	Method, Path, Query, Proto []byte
+	Headers                    [hdrsMax]kv
+	HdrsNum                    int
 	//ContentLen          int
 	Body []byte
 }
@@ -38,25 +38,29 @@ type request struct {
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
-	hdrLen := bytes.Index(buf, rnrn)
-	if hdrLen == -1 {
+	hdrLen := bytes.Index(buf, rnrn) + rnLen
+	if hdrLen == (rnLen - 1) {
 		incomplete = true
 		return // Incomplete data
 	}
-	hdrEnd := hdrLen + rnrnLen
-	reqLen = hdrEnd
-
-	if bodyMax > 0 {
+	reqLen = hdrLen + 2
+	if bodySizeMax > 0 {
 		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
-		clIdx := bytes.Index(buf[:hdrLen], clKey)
-		if clIdx != -1 {
-			bgn := clIdx + clKeyLen
+		bgn := bytes.Index(buf[:hdrLen], clKey) + clKeyLen
+		if bgn != (clKeyLen - 1) {
+
+			//covert content length from string to int
 			var cl int
-			cl, err = uintBytes(buf[bgn:bgn+bytes.IndexByte(buf[bgn:hdrEnd], rn)], bodyMax)
-			if err != nil {
-				return
+			for _, chr := range buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrLen], rn)] {
+				if cl < bodySizeMax && chr > ('0'-1) && chr < ('9'+1) {
+					cl = (10 * cl) + int(chr-'0')
+				} else {
+					println("err1")
+					err = ErrBadRequest
+					return
+				}
 			}
 
 			// Pastikan seluruh Body sudah masuk di buffer gnet
@@ -65,10 +69,9 @@ func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, e
 				incomplete = true
 				return // Incomplete data
 			}
-			if cl > 0 {
-				//req.ContentLen = cl
-				req.Body = buf[hdrEnd:reqLen]
-			}
+
+			//req.ContentLen = cl
+			req.Body = buf[hdrLen:reqLen]
 		}
 	}
 
@@ -77,28 +80,37 @@ func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, e
 	// Method
 	sp1 := bytes.IndexByte(buf[:hdrLen], ' ')
 	if sp1 == -1 {
+		println("err2")
 		err = ErrBadRequest
 		return
 	}
 	req.Method = buf[:sp1]
-	//println(string(buf[:sp1]))
+	//println("method:", string(buf[:sp1]))
 
-	// Path
+	// Path & Query
 	sp1++ //skip ' '
-	sp2 := bytes.IndexByte(buf[sp1:hdrLen], ' ')
-	if sp2 == -1 {
+	idx := bytes.IndexByte(buf[sp1:hdrLen], ' ')
+	if idx == -1 {
+		println("err3")
 		err = ErrBadRequest
 		return
 	}
-	sp2 += sp1
-	req.Path = buf[sp1:sp2]
-	//println(string(buf[sp1:sp2]))
+	sp2 := sp1 + idx
+	path := buf[sp1:sp2]
+	//println("path:", string(path))
+	idx = bytes.IndexByte(path, '?')
+	if idx != -1 {
+		req.Path = path[:idx]
+		req.Query = path[idx+1:]
+	} else {
+		req.Path = path
+	}
 
 	// Protocol
 	sp2++ //skip ' '
-	reqLineEnd := bytes.IndexByte(buf[sp2:hdrEnd], rn) + sp2
+	reqLineEnd := bytes.IndexByte(buf[sp2:hdrLen], rn) + sp2
 	req.Proto = buf[sp2:reqLineEnd]
-	//println(string(buf[sp2:reqLineEnd]))
+	//println("proto:", string(buf[sp2:reqLineEnd]))
 
 	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	kBgn := reqLineEnd + rnLen
@@ -106,12 +118,13 @@ func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, e
 	for kBgn < hdrLen {
 		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
 		if kEnd == -1 {
+			println("err4")
 			err = ErrBadRequest
 			return
 		}
 		kEnd += kBgn
 		vBgn := kEnd + hdrSparatrLen
-		vEnd := bytes.IndexByte(buf[vBgn:hdrEnd], rn) + vBgn
+		vEnd := bytes.IndexByte(buf[vBgn:hdrLen], rn) + vBgn
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
 		req.Headers[hdrIdx] = kv{
 			Key: buf[kBgn:kEnd],
@@ -119,22 +132,12 @@ func Parse(buf []byte, bodyMax int) (req request, reqLen int, incomplete bool, e
 		}
 		hdrIdx++
 		if hdrIdx == hdrsMax {
+			println("err5")
 			err = ErrBadRequest
 			return
 		}
 		kBgn = vEnd + rnLen
 	}
 	req.HdrsNum = hdrIdx
-	return
-}
-func uintBytes(bs []byte, max int) (val int, err error) {
-	for _, chr := range bs {
-		if val < max && chr >= '0' && chr <= '9' {
-			val = val*10 + int(chr-'0')
-		} else {
-			err = ErrBadRequest
-			return
-		}
-	}
 	return
 }

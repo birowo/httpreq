@@ -26,12 +26,14 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {
+		println("error")
 		c.Write(badReqRes)
 		return gnet.Close
 	}
 
 	// 4. Jika paket belum lengkap, tunggu data berikutnya di event OnTraffic selanjutnya
 	if incomplete {
+		println("incomplete")
 		return gnet.None
 	}
 
@@ -44,11 +46,11 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	println("sebelum di-parse:\n", string(buf[:consumed]))
 	println()
 	println("setelah di-parse:")
-	println("method:", string(req.Method), "\npath:", string(req.Path), "\nproto:", string(req.Proto))
+	println("method:", string(req.Method), "\npath:", string(req.Path), "\nquery:", string(req.Query), "\nproto:", string(req.Proto))
 	for _, hdr := range req.Headers[:req.HdrsNum] {
 		println(string(hdr.Key), ":", string(hdr.Val))
 	}
-	if req.Body != nil {
+	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
 	}
 
