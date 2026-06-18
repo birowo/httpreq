@@ -22,7 +22,15 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	buf, _ := c.Peek(c.InboundBuffered())
 
 	// 2. Siapkan struct Request di stack (zero-alloc)
-	req, consumed, incomplete, err := httpreq.Parse(buf, 1000000)
+	req := new(httpreq.Request)
+	req.Headers = []httpreq.KV{
+		{Key: []byte("Host")},
+		{Key: []byte("User-Agent")},
+		{Key: []byte("Accept")},
+		{Key: []byte("Content-Type")},
+		{Key: []byte("Content-Length")},
+	}
+	consumed, incomplete, err := httpreq.Parse(buf, req, 1000000)
 
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {
@@ -49,7 +57,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	mthd := req.Method
 	path := req.Path
 	println("method:", string(buf[mthd.Bgn:mthd.End]), "\npath:", string(buf[path.Bgn:path.End]), "\nquery:", string(req.Query), "\nproto:", string(req.Proto))
-	for _, hdr := range req.Headers[:req.HdrsNum] {
+	for _, hdr := range req.Headers {
 		println(string(hdr.Key), ":", string(hdr.Val))
 	}
 	if len(req.Body) != 0 {

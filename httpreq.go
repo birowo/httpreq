@@ -14,7 +14,6 @@ const (
 	clKeyLen      = len(clKeyStr)
 	hdrSparatr    = ':'
 	hdrSparatrLen = 2
-	hdrsMax       = 32
 )
 
 var (
@@ -24,17 +23,16 @@ var (
 )
 
 type (
-	kv struct {
+	KV struct {
 		Key, Val []byte
 	}
 	slc struct {
 		Bgn, End int
 	}
-	request struct {
+	Request struct {
 		Method, Path slc
 		Query, Proto []byte
-		Headers      [hdrsMax]kv
-		HdrsNum      int
+		Headers      []KV
 		//ContentLen int
 		Body []byte
 	}
@@ -43,14 +41,14 @@ type (
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn) + rnLen
 	if hdrLen == (rnLen - 1) {
 		incomplete = true
 		return // Incomplete data
 	}
-	reqLen = hdrLen + 2
+	reqLen = hdrLen + rnLen
 	if bodyLenMax > 0 {
 		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
 		bgn := bytes.Index(buf[:hdrLen], clKey) + clKeyLen
@@ -76,7 +74,7 @@ func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool
 			}
 
 			//req.ContentLen = cl
-			req.Body = buf[hdrLen+2 : reqLen]
+			req.Body = buf[hdrLen+rnLen : reqLen]
 		}
 	}
 
@@ -118,7 +116,7 @@ func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool
 
 	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	kBgn := reqLineEnd + rnLen
-	hdrIdx := 0
+	last := len(req.Headers) - 1
 	for kBgn < hdrLen {
 		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
 		if kEnd == -1 {
@@ -130,18 +128,19 @@ func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool
 		vBgn := kEnd + hdrSparatrLen
 		vEnd := bytes.IndexByte(buf[vBgn:hdrLen], rn) + vBgn
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
-		req.Headers[hdrIdx] = kv{
-			Key: buf[kBgn:kEnd],
-			Val: buf[vBgn:vEnd],
+		for i, hdr := range req.Headers[:last+1] {
+			if bytes.Equal(hdr.Key, buf[kBgn:kEnd]) {
+				println(buf[kBgn:kEnd], ":", buf[vBgn:vEnd])
+				req.Headers[i].Val = buf[vBgn:vEnd]
+				req.Headers[i], req.Headers[last] = req.Headers[last], req.Headers[i]
+				break
+			}
 		}
-		hdrIdx++
-		if hdrIdx == hdrsMax {
-			println("err5")
-			err = ErrBadRequest
+		last--
+		if last == -1 {
 			return
 		}
 		kBgn = vEnd + rnLen
 	}
-	req.HdrsNum = hdrIdx
 	return
 }
