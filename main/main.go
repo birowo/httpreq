@@ -46,7 +46,9 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	println("sebelum di-parse:\n", string(buf[:consumed]))
 	println()
 	println("setelah di-parse:")
-	println("method:", string(req.Method), "\npath:", string(req.Path), "\nquery:", string(req.Query), "\nproto:", string(req.Proto))
+	mthd := req.Method
+	path := req.Path
+	println("method:", string(buf[mthd.Bgn:mthd.End]), "\npath:", string(buf[path.Bgn:path.End]), "\nquery:", string(req.Query), "\nproto:", string(req.Proto))
 	for _, hdr := range req.Headers[:req.HdrsNum] {
 		println(string(hdr.Key), ":", string(hdr.Val))
 	}

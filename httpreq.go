@@ -23,22 +23,27 @@ var (
 	clKey         = []byte(clKeyStr)
 )
 
-type kv struct {
-	Key, Val []byte
-}
-
-type request struct {
-	Method, Path, Query, Proto []byte
-	Headers                    [hdrsMax]kv
-	HdrsNum                    int
-	//ContentLen          int
-	Body []byte
-}
+type (
+	kv struct {
+		Key, Val []byte
+	}
+	slc struct {
+		Bgn, End int
+	}
+	request struct {
+		Method, Path slc
+		Query, Proto []byte
+		Headers      [hdrsMax]kv
+		HdrsNum      int
+		//ContentLen int
+		Body []byte
+	}
+)
 
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn) + rnLen
 	if hdrLen == (rnLen - 1) {
@@ -46,7 +51,7 @@ func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete boo
 		return // Incomplete data
 	}
 	reqLen = hdrLen + 2
-	if bodySizeMax > 0 {
+	if bodyLenMax > 0 {
 		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
 		bgn := bytes.Index(buf[:hdrLen], clKey) + clKeyLen
 		if bgn != (clKeyLen - 1) {
@@ -54,7 +59,7 @@ func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete boo
 			//covert content length from string to int
 			var cl int
 			for _, chr := range buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrLen], rn)] {
-				if cl < bodySizeMax && chr > ('0'-1) && chr < ('9'+1) {
+				if cl < bodyLenMax && chr > ('0'-1) && chr < ('9'+1) {
 					cl = (10 * cl) + int(chr-'0')
 				} else {
 					println("err1")
@@ -84,7 +89,7 @@ func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete boo
 		err = ErrBadRequest
 		return
 	}
-	req.Method = buf[:sp1]
+	req.Method = slc{0, sp1}
 	//println("method:", string(buf[:sp1]))
 
 	// Path & Query
@@ -96,14 +101,13 @@ func Parse(buf []byte, bodySizeMax int) (req request, reqLen int, incomplete boo
 		return
 	}
 	sp2 := sp1 + idx
-	path := buf[sp1:sp2]
-	//println("path:", string(path))
-	idx = bytes.IndexByte(path, '?')
-	if idx != -1 {
-		req.Path = path[:idx]
-		req.Query = path[idx+1:]
+	//println("path:", string(buf[sp1:sp2]))
+	idx = sp1 + bytes.IndexByte(buf[sp1:sp2], '?')
+	if idx != (sp1 - 1) {
+		req.Path = slc{sp1, idx}
+		req.Query = buf[idx+1 : sp2]
 	} else {
-		req.Path = path
+		req.Path = slc{sp1, sp2}
 	}
 
 	// Protocol
