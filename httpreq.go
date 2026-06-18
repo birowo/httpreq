@@ -76,7 +76,7 @@ func Parse(buf []byte, bodyLenMax int) (req request, reqLen int, incomplete bool
 			}
 
 			//req.ContentLen = cl
-			req.Body = buf[hdrLen:reqLen]
+			req.Body = buf[hdrLen+2 : reqLen]
 		}
 	}
 
