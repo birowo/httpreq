@@ -116,7 +116,7 @@ func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete boo
 
 	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	kBgn := reqLineEnd + rnLen
-	last := len(req.Headers) - 1
+	n := len(req.Headers)
 	for kBgn < hdrLen {
 		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
 		if kEnd == -1 {
@@ -128,17 +128,17 @@ func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete boo
 		vBgn := kEnd + hdrSparatrLen
 		vEnd := bytes.IndexByte(buf[vBgn:hdrLen], rn) + vBgn
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
-		for i, hdr := range req.Headers[:last+1] {
+		for i, hdr := range req.Headers[:n] {
 			if bytes.Equal(hdr.Key, buf[kBgn:kEnd]) {
-				println(buf[kBgn:kEnd], ":", buf[vBgn:vEnd])
+				//println(string(buf[kBgn:kEnd]), ":", string(buf[vBgn:vEnd]))
 				req.Headers[i].Val = buf[vBgn:vEnd]
-				req.Headers[i], req.Headers[last] = req.Headers[last], req.Headers[i]
+				n--
+				if n == 0 {
+					return
+				}
+				req.Headers[i], req.Headers[n] = req.Headers[n], req.Headers[i]
 				break
 			}
-		}
-		last--
-		if last == -1 {
-			return
 		}
 		kBgn = vEnd + rnLen
 	}
