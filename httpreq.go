@@ -7,7 +7,6 @@ import (
 
 const (
 	rnrnStr       = "\r\n\r\n"
-	rnrnLen       = len(rnrnStr)
 	rn            = '\r'
 	rnLen         = 2
 	clKeyStr      = "\r\nContent-Length: "
@@ -41,24 +40,24 @@ type (
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn) + rnLen
-	if hdrLen == (rnLen - 1) {
+	if reqLen == (rnLen - 1) {
 		incomplete = true
 		return // Incomplete data
 	}
 	reqLen = hdrLen + rnLen
-	if bodyLenMax > 0 {
+	if bodyLenMax != 0 {
 		// 2. Cari Content-Length (Pasti Title-Case karena dari cloudflared tunnel)
 		bgn := bytes.Index(buf[:hdrLen], clKey) + clKeyLen
 		if bgn != (clKeyLen - 1) {
 
 			//covert content length from string to int
-			var cl int
+			var cl uint
 			for _, chr := range buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrLen], rn)] {
 				if cl < bodyLenMax && chr > ('0'-1) && chr < ('9'+1) {
-					cl = (10 * cl) + int(chr-'0')
+					cl = (10 * cl) + uint(chr-'0')
 				} else {
 					println("err1")
 					err = ErrBadRequest
@@ -67,7 +66,7 @@ func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete boo
 			}
 
 			// Pastikan seluruh Body sudah masuk di buffer gnet
-			reqLen += cl
+			reqLen += int(cl)
 			if len(buf) < reqLen {
 				incomplete = true
 				return // Incomplete data
@@ -118,15 +117,15 @@ func Parse(buf []byte, req *Request, bodyLenMax int) (reqLen int, incomplete boo
 	kBgn := reqLineEnd + rnLen
 	n := len(req.Headers)
 	for kBgn < hdrLen {
-		kEnd := bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
-		if kEnd == -1 {
+		kEnd := kBgn + bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
+		if kEnd == kBgn-1 {
 			println("err4")
 			err = ErrBadRequest
 			return
 		}
-		kEnd += kBgn
+
 		vBgn := kEnd + hdrSparatrLen
-		vEnd := bytes.IndexByte(buf[vBgn:hdrLen], rn) + vBgn
+		vEnd := vBgn + bytes.IndexByte(buf[vBgn:hdrLen], rn)
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
 		for i, hdr := range req.Headers[:n] {
 			if bytes.Equal(hdr.Key, buf[kBgn:kEnd]) {

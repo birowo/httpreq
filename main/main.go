@@ -22,7 +22,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	buf, _ := c.Peek(c.InboundBuffered())
 
 	// 2. Siapkan struct Request di stack (zero-alloc)
-	req := new(httpreq.Request)
+	var req httpreq.Request
 	req.Headers = []httpreq.KV{
 		{Key: []byte("Host")},
 		{Key: []byte("User-Agent")},
@@ -30,11 +30,11 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		{Key: []byte("Content-Type")},
 		{Key: []byte("Content-Length")},
 	}
-	consumed, incomplete, err := httpreq.Parse(buf, req, 1000000)
+	consumed, incomplete, err := httpreq.Parse(buf, &req, 1000000)
 
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {
-		println("error")
+		println(err.Error())
 		c.Write(badReqRes)
 		return gnet.Close
 	}
@@ -50,15 +50,20 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	// Kirim response balik ke client
 	c.Write(pongRes)
 
-	println()
-	println("sebelum di-parse:\n", string(buf[:consumed]))
-	println()
-	println("setelah di-parse:")
+	println("\nsebelum di-parse:\n", string(buf[:consumed]))
+	println("\nsetelah di-parse:")
 	mthd := req.Method
 	path := req.Path
-	println("method:", string(buf[mthd.Bgn:mthd.End]), "\npath:", string(buf[path.Bgn:path.End]), "\nquery:", string(req.Query), "\nproto:", string(req.Proto))
+	println(
+		"method:", string(buf[mthd.Bgn:mthd.End]),
+		"\npath:", string(buf[path.Bgn:path.End]),
+		"\nquery:", string(req.Query),
+		"\nproto:", string(req.Proto),
+	)
 	for _, hdr := range req.Headers {
-		println(string(hdr.Key), ":", string(hdr.Val))
+		println(
+			string(hdr.Key), ":", string(hdr.Val),
+		)
 	}
 	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
