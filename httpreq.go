@@ -3,19 +3,25 @@ package httpreq
 import (
 	"bytes"
 	"errors"
+	"sync/atomic"
+	"time"
+
+	"github.com/birowo/httpdateint64"
 )
 
 const (
-	rnrnStr       = "\r\n\r\n"
-	rn            = '\r'
-	rnLen         = 2
-	clKeyStr      = "\r\nContent-Length: "
-	clKeyLen      = len(clKeyStr)
-	hdrSparatr    = ':'
-	hdrSparatrLen = 2
+	rnrnStr      = "\r\n\r\n"
+	rn           = "\r\n"
+	rnLen        = len(rn)
+	clKeyStr     = "\r\nContent-Length: "
+	clKeyLen     = len(clKeyStr)
+	hdrSeparator = ": "
+	hdrSepLen    = len(hdrSeparator)
 )
 
 var (
+	r             = rn[0]
+	hdrSep        = hdrSeparator[0]
 	rnrn          = []byte(rnrnStr)
 	ErrBadRequest = errors.New("bad request")
 	clKey         = []byte(clKeyStr)
@@ -43,7 +49,7 @@ type (
 func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn) + rnLen
-	if reqLen == (rnLen - 1) {
+	if hdrLen == (rnLen - 1) {
 		incomplete = true
 		return // Incomplete data
 	}
@@ -55,7 +61,7 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 
 			//covert content length from string to int
 			var cl uint
-			for _, chr := range buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrLen], rn)] {
+			for _, chr := range buf[bgn : bgn+bytes.IndexByte(buf[bgn:hdrLen], r)] {
 				if cl < bodyLenMax && chr > ('0'-1) && chr < ('9'+1) {
 					cl = (10 * cl) + uint(chr-'0')
 				} else {
@@ -109,7 +115,7 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 
 	// Protocol
 	sp2++ //skip ' '
-	reqLineEnd := bytes.IndexByte(buf[sp2:hdrLen], rn) + sp2
+	reqLineEnd := bytes.IndexByte(buf[sp2:hdrLen], r) + sp2
 	req.Proto = buf[sp2:reqLineEnd]
 	//println("proto:", string(buf[sp2:reqLineEnd]))
 
@@ -117,15 +123,15 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 	kBgn := reqLineEnd + rnLen
 	n := len(req.Headers)
 	for kBgn < hdrLen {
-		kEnd := kBgn + bytes.IndexByte(buf[kBgn:hdrLen], hdrSparatr)
+		kEnd := kBgn + bytes.IndexByte(buf[kBgn:hdrLen], hdrSep)
 		if kEnd == kBgn-1 {
 			println("err4")
 			err = ErrBadRequest
 			return
 		}
 
-		vBgn := kEnd + hdrSparatrLen
-		vEnd := vBgn + bytes.IndexByte(buf[vBgn:hdrLen], rn)
+		vBgn := kEnd + hdrSepLen
+		vEnd := vBgn + bytes.IndexByte(buf[vBgn:hdrLen], r)
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
 		for i, hdr := range req.Headers[:n] {
 			if bytes.Equal(hdr.Key, buf[kBgn:kEnd]) {
@@ -142,4 +148,31 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 		kBgn = vEnd + rnLen
 	}
 	return
+}
+
+const intStrSz = 10
+
+func StrInt(x uint32) (y [intStrSz]byte, i int) {
+	i = intStrSz
+	for x != 0 {
+		i--
+		y[i] = '0' + byte(x%10)
+		x /= 10
+	}
+	return
+}
+
+var dateHdr atomic.Pointer[httpdateint64.HttpDate]
+
+func init() {
+	buf1 := new(httpdateint64.HttpDate)
+	buf2 := new(httpdateint64.HttpDate)
+	go func() {
+		for {
+			buf1, buf2 = buf2, buf1
+			httpdateint64.Conv(time.Now().Unix(), buf1)
+			dateHdr.Store(buf1)
+			time.Sleep(time.Second)
+		}
+	}()
 }
