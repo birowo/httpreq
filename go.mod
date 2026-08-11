@@ -1,10 +1,9 @@
-module github.com/birowo/httparse
+module github.com/birowo/httpreq
 
 go 1.26.5
 
 require (
 	github.com/birowo/httpdateint64 v0.0.0-20260708085933-697ec7eb432c
-	github.com/birowo/httpreq v0.0.0-20260718033310-5ddeaad1b902
 	github.com/panjf2000/gnet/v2 v2.10.0
 )
 
