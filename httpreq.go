@@ -169,7 +169,7 @@ func init() {
 	go func() {
 		for {
 			buf1, buf2 = buf2, buf1
-			httpdateint64.Conv(time.Now().Unix(), buf1)
+			*buf1 = httpdateint64.Conv(uint64(time.Now().Unix()))
 			dateHdr.Store(buf1)
 			time.Sleep(time.Second)
 		}
