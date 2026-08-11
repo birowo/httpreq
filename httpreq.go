@@ -37,7 +37,6 @@ type (
 	Request struct {
 		Method, Path slc
 		Query, Proto []byte
-		Headers      []KV
 		//ContentLen int
 		Body []byte
 	}
@@ -46,7 +45,7 @@ type (
 // func Parse Http Request memproses buffer secara zero-alloc.
 // Mengembalikan (request, consumed, incomplete, error).
 // Jika incomplete == true, artinya data belum lengkap (incomplete), gnet harus menunggu data baru.
-func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bool, err error) {
+func Parse(buf []byte, headers []KV, bodyLenMax uint) (req Request, reqLen int, incomplete bool, err error) {
 	// 1. Cari batas akhir seluruh hdrs (\r\n\r\n)
 	hdrLen := bytes.Index(buf, rnrn) + rnLen
 	if hdrLen == (rnLen - 1) {
@@ -121,7 +120,7 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 
 	// 4. Parsing Seluruh Headers (Key otomatis Title-Case karena dari cloudflared tunnel)
 	kBgn := reqLineEnd + rnLen
-	n := len(req.Headers)
+	n := len(headers)
 	for kBgn < hdrLen {
 		kEnd := kBgn + bytes.IndexByte(buf[kBgn:hdrLen], hdrSep)
 		if kEnd == kBgn-1 {
@@ -133,15 +132,15 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 		vBgn := kEnd + hdrSepLen
 		vEnd := vBgn + bytes.IndexByte(buf[vBgn:hdrLen], r)
 		//println("k:", string(buf[kBgn:kEnd]), ",v:", string(buf[vBgn:vEnd]))
-		for i, hdr := range req.Headers[:n] {
+		for i, hdr := range headers[:n] {
 			if bytes.Equal(hdr.Key, buf[kBgn:kEnd]) {
 				//println(string(buf[kBgn:kEnd]), ":", string(buf[vBgn:vEnd]))
-				req.Headers[i].Val = buf[vBgn:vEnd]
+				headers[i].Val = buf[vBgn:vEnd]
 				n--
 				if n == 0 {
 					return
 				}
-				req.Headers[i], req.Headers[n] = req.Headers[n], req.Headers[i]
+				headers[i], headers[n] = headers[n], headers[i]
 				break
 			}
 		}
@@ -152,7 +151,7 @@ func Parse(buf []byte, req *Request, bodyLenMax uint) (reqLen int, incomplete bo
 
 const intStrSz = 10
 
-func StrInt(x uint32) (y [intStrSz]byte, i int) {
+func BsInt(x uint32) (y [intStrSz]byte, i int) {
 	i = intStrSz
 	for x != 0 {
 		i--

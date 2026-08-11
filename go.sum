@@ -1,5 +1,7 @@
 github.com/birowo/httpdateint64 v0.0.0-20260708085933-697ec7eb432c h1:JaP6Wb81BN1cuMk90/2cdhCYctVXoIf8xWoztNW3jCM=
 github.com/birowo/httpdateint64 v0.0.0-20260708085933-697ec7eb432c/go.mod h1:82CZq3edsVEK+woYfNu2ap8XFsnBH9LC8O0sNu82b04=
+github.com/birowo/httpreq v0.0.0-20260718033310-5ddeaad1b902 h1:FiKWeOwoGF+drMqP4FsCYpmYo+ZvSFrL5Qkfaci42UA=
+github.com/birowo/httpreq v0.0.0-20260718033310-5ddeaad1b902/go.mod h1:ib+j1/vO7FvplnldQGXqqVIDUmejpOzjJJcAICvGaU0=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/panjf2000/ants/v2 v2.12.1 h1:BWvU2wHpyXWxhhNXsGB6JXLCNbshyLd1QxvoAmZnu10=
