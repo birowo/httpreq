@@ -3,7 +3,7 @@ module github.com/birowo/httpreq
 go 1.26.5
 
 require (
-	github.com/birowo/httpdateint64 v0.0.0-20260708085933-697ec7eb432c
+	github.com/birowo/httpdateint64 v0.0.0-20260811063255-15fac5321c23
 	github.com/panjf2000/gnet/v2 v2.10.0
 )
 
