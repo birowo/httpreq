@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/birowo/httpreq"
 	"github.com/panjf2000/gnet/v2"
 )
@@ -14,6 +16,11 @@ var (
 	badReqRes = []byte(
 		"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n",
 	)
+	bufPool = sync.Pool{
+		New: func() any {
+			return make([]byte, 9999)
+		},
+	}
 	pongRes = []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\npong\n")
 )
 
@@ -25,10 +32,14 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 
 	headers := []httpreq.KV{
 		{Key: []byte("Host")},
+		{Key: []byte("Date")},
 		{Key: []byte("User-Agent")},
 		{Key: []byte("Accept")},
 		{Key: []byte("Content-Type")},
 		{Key: []byte("Content-Length")},
+	}
+	resHdr := []httpreq.KV{
+		{[]byte("Content-Type"), []byte("text/html; charset=utf-8")},
 	}
 	req, consumed, incomplete, err := httpreq.Parse(buf, headers, 1000000)
 
@@ -46,9 +57,6 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	}
 
 	// --- LOGIKA BISNIS (Eksekusi sebelum c.Discard) ---
-
-	// Kirim response balik ke client
-	c.Write(pongRes)
 
 	println("\nsebelum di-parse:\n", string(buf[:consumed]))
 	println("\nsetelah di-parse:")
@@ -68,6 +76,13 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
 	}
+
+	// Kirim response balik ke client
+	res := bufPool.Get().([]byte)
+	n := httpreq.Res(req.Proto, httpreq.StatusOK, resHdr, res, []byte("hello world"))
+	//println(string(res[:n]))
+	c.Write(res[:n])
+	bufPool.Put(res)
 
 	// 5. Geser/buang buffer gnet yang sudah selesai diproses
 	c.Discard(consumed)

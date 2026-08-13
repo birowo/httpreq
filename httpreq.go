@@ -175,3 +175,39 @@ func init() {
 		}
 	}()
 }
+
+var (
+	StatusOK = []byte("200 OK")
+)
+
+func Res(proto, status []byte, headers []KV, buf, body []byte) (n int) {
+	n = copy(buf, proto)
+	buf[n] = ' '
+	n++
+	//println(string(buf[:n]))
+	n += copy(buf[n:], status)
+	n += copy(buf[n:], rn)
+	//println(string(buf[:n]))
+	n += copy(buf[n:], "Date: ")
+	n += copy(buf[n:], dateHdr.Load()[:])
+	n += copy(buf[n:], rn)
+	//println(string(buf[:n]))
+	for _, header := range headers {
+		n += copy(buf[n:], header.Key)
+		n += copy(buf[n:], hdrSeparator)
+		n += copy(buf[n:], header.Val)
+		n += copy(buf[n:], rn)
+	}
+	//println(string(buf[:n]))
+	if body != nil {
+		n += copy(buf[n:], "Content-Length: ")
+		cl, i := BsInt(uint32(len(body)))
+		n += copy(buf[n:], cl[i:])
+		n += copy(buf[n:], rnrn)
+		n += copy(buf[n:], body)
+		//println(string(buf[:n]))
+	} else {
+		n += copy(buf[n:], rn)
+	}
+	return
+}
