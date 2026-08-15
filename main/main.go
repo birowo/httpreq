@@ -43,6 +43,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {
 		println(err.Error())
+		copy(badReqRes, req.Proto)
 		c.Write(badReqRes)
 		return gnet.Close
 	}
@@ -86,13 +87,9 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		{[]byte("Content-Length"), resBodyLen[i:]},
 	}
 	n += httpreq.ResHdrs(httpreq.StatusOK, resHdr, res[n:])
-	//println(string(res[:n]))
 	n += copy(res[n:], resBody)
-	println(string(res[:n]))
-	l := 0
-	for l < n {
-		l, _ = c.Write(res[l:n])
-	}
+	println("\nresponse:\n", string(res[:n]))
+	c.Write(res[:n])
 	bufPool.Put(res)
 
 	return gnet.None
