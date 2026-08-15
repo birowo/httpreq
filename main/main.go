@@ -21,7 +21,6 @@ var (
 			return make([]byte, 9999)
 		},
 	}
-	pongRes = []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\npong\n")
 )
 
 func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
@@ -38,9 +37,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		{Key: []byte("Content-Type")},
 		{Key: []byte("Content-Length")},
 	}
-	resHdr := []httpreq.KV{
-		{[]byte("Content-Type"), []byte("text/html; charset=utf-8")},
-	}
+
 	req, consumed, incomplete, err := httpreq.Parse(buf, headers, 1000000)
 
 	// 3. Handle error format HTTP (Bad Request)
@@ -76,16 +73,27 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
 	}
-
-	// Kirim response balik ke client
 	res := bufPool.Get().([]byte)
-	n := httpreq.Res(req.Proto, httpreq.StatusOK, resHdr, res, []byte("hello world"))
-	//println(string(res[:n]))
-	c.Write(res[:n])
-	bufPool.Put(res)
-
+	n := copy(res, req.Proto)
 	// 5. Geser/buang buffer gnet yang sudah selesai diproses
 	c.Discard(consumed)
+
+	// Kirim response balik ke client
+	resBody := []byte("hello world")
+	resBodyLen, i := httpreq.BsInt(uint32(len(resBody)))
+	resHdr := []httpreq.KV{
+		{[]byte("Content-Type"), []byte("text/html; charset=utf-8")},
+		{[]byte("Content-Length"), resBodyLen[i:]},
+	}
+	n += httpreq.ResHdrs(httpreq.StatusOK, resHdr, res[n:])
+	//println(string(res[:n]))
+	n += copy(res[n:], resBody)
+	println(string(res[:n]))
+	l := 0
+	for l < n {
+		l, _ = c.Write(res[l:n])
+	}
+	bufPool.Put(res)
 
 	return gnet.None
 }

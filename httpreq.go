@@ -180,8 +180,7 @@ var (
 	StatusOK = []byte("200 OK")
 )
 
-func Res(proto, status []byte, headers []KV, buf, body []byte) (n int) {
-	n = copy(buf, proto)
+func ResHdrs(status []byte, headers []KV, buf []byte) (n int) {
 	buf[n] = ' '
 	n++
 	//println(string(buf[:n]))
@@ -198,16 +197,7 @@ func Res(proto, status []byte, headers []KV, buf, body []byte) (n int) {
 		n += copy(buf[n:], header.Val)
 		n += copy(buf[n:], rn)
 	}
+	n += copy(buf[n:], rn)
 	//println(string(buf[:n]))
-	if body != nil {
-		n += copy(buf[n:], "Content-Length: ")
-		cl, i := BsInt(uint32(len(body)))
-		n += copy(buf[n:], cl[i:])
-		n += copy(buf[n:], rnrn)
-		n += copy(buf[n:], body)
-		//println(string(buf[:n]))
-	} else {
-		n += copy(buf[n:], rn)
-	}
 	return
 }
