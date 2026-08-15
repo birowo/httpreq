@@ -14,7 +14,7 @@ type httpServer struct {
 
 var (
 	badReqRes = []byte(
-		"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n",
+		" 400 Bad Request\r\nConnection: close\r\n\r\n",
 	)
 	bufPool = sync.Pool{
 		New: func() any {
@@ -43,7 +43,7 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	// 3. Handle error format HTTP (Bad Request)
 	if err != nil {
 		println(err.Error())
-		copy(badReqRes, req.Proto)
+		c.Write(req.Proto)
 		c.Write(badReqRes)
 		return gnet.Close
 	}
