@@ -149,10 +149,25 @@ func Parse(buf []byte, headers []KV, bodyLenMax uint) (req Request, reqLen int, 
 	return
 }
 
-const intStrSz = 10
+const (
+	cl    = "Content-Length: 0123456789\r\n"
+	clLen = len(cl)
+)
 
-func BsInt(x uint32) (y [intStrSz]byte, i int) {
-	i = intStrSz
+type Cl [clLen]byte
+
+func BsInt(x uint32) (y [clLen]byte) {
+	y = [clLen]byte{
+		'C', 'o', 'n', 't', 'e', 'n', 't',
+		'-',
+		'L', 'e', 'n', 'g', 't', 'h', ':', ' ',
+		' ', ' ', ' ', ' ', ' ',
+		//....1....2....3....4
+		' ', ' ', ' ', ' ', ' ', '\r', '\n',
+		//....6....7....8....9
+	}
+
+	i := clLen - 2
 	for x != 0 {
 		i--
 		y[i] = '0' + byte(x%10)
@@ -177,28 +192,22 @@ func init() {
 }
 
 var (
-	StatusOK = []byte("200 OK")
+	StatusOK = []byte("200 OK\r\n")
 )
 
-func ResHdrs(status []byte, headers []KV, buf *[512][]byte) int {
-	buf[1] = []byte(" ")
+func ResHdrs(headers [][]byte, buf *[512][]byte) (i int) {
 	//println(string(buf[:n]))
-	buf[2] = status
-	buf[3] = []byte("\r\n")
 	//println(string(buf[:n]))
-	buf[4] = []byte("Date: ")
-	buf[5] = dateHdr.Load()[:]
-	buf[6] = []byte("\r\n")
+	buf[2] = []byte("Date: ")
+	buf[3] = dateHdr.Load()[:]
+	buf[4] = []byte("\r\n")
 	//println(string(buf[:n]))
-	n := 7
-	for _, header := range headers {
-		buf[n] = header.Key
-		buf[n+1] = []byte(": ")
-		buf[n+2] = header.Val
-		buf[n+3] = []byte("\r\n")
-		n += 4
+	var header []byte
+	for i, header = range headers {
+		buf[i+5] = header
+
 	}
-	buf[n] = []byte("\r\n")
+	buf[i+6] = []byte("\r\n")
 	//println(string(buf[:n]))
-	return n + 1
+	return i + 7
 }

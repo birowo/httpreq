@@ -1,7 +1,7 @@
 package main
 
 import (
-	"sync"
+	"fmt"
 
 	"github.com/birowo/httpreq"
 	"github.com/panjf2000/gnet/v2"
@@ -16,11 +16,6 @@ var (
 	badReqRes = []byte(
 		" 400 Bad Request\r\nConnection: close\r\n\r\n",
 	)
-	bufPool = sync.Pool{
-		New: func() any {
-			return make([]byte, 9999)
-		},
-	}
 )
 
 func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
@@ -74,21 +69,22 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
 	}
-	var res [512][]byte
-	res[0] = req.Proto
 	// 5. Geser/buang buffer gnet yang sudah selesai diproses
 	c.Discard(consumed)
 
 	// Kirim response balik ke client
 	resBody := []byte("hello world")
-	resBodyLen, i := httpreq.BsInt(uint32(len(resBody)))
-	resHdr := []httpreq.KV{
-		{[]byte("Content-Type"), []byte("text/html; charset=utf-8")},
-		{[]byte("Content-Length"), resBodyLen[i:]},
+	resBodyLen := httpreq.BsInt(uint32(len(resBody)))
+	resHdr := [][]byte{
+		[]byte("Content-Type: text/html; charset=utf-8\r\n"),
+		resBodyLen[:],
 	}
-	n := httpreq.ResHdrs(httpreq.StatusOK, resHdr, &res)
+	var res [512][]byte
+	res[0] = []byte("HTTP/1.1 ")
+	res[1] = httpreq.StatusOK
+	n := httpreq.ResHdrs(resHdr, &res)
 	res[n] = resBody
-	//println("\nresponse:\n", string(res[:n]))
+	fmt.Printf("%q\n", res[:n+1])
 	c.AsyncWritev(res[:n+1], nil)
 
 	return gnet.None
