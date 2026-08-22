@@ -74,8 +74,8 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	if len(req.Body) != 0 {
 		println("body:", string(req.Body))
 	}
-	res := bufPool.Get().([]byte)
-	n := copy(res, req.Proto)
+	var res [512][]byte
+	res[0] = req.Proto
 	// 5. Geser/buang buffer gnet yang sudah selesai diproses
 	c.Discard(consumed)
 
@@ -86,11 +86,10 @@ func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		{[]byte("Content-Type"), []byte("text/html; charset=utf-8")},
 		{[]byte("Content-Length"), resBodyLen[i:]},
 	}
-	n += httpreq.ResHdrs(httpreq.StatusOK, resHdr, res[n:])
-	n += copy(res[n:], resBody)
-	println("\nresponse:\n", string(res[:n]))
-	c.Write(res[:n])
-	bufPool.Put(res)
+	n := httpreq.ResHdrs(httpreq.StatusOK, resHdr, &res)
+	res[n] = resBody
+	//println("\nresponse:\n", string(res[:n]))
+	c.AsyncWritev(res[:n+1], nil)
 
 	return gnet.None
 }

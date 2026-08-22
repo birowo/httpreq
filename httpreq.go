@@ -180,24 +180,25 @@ var (
 	StatusOK = []byte("200 OK")
 )
 
-func ResHdrs(status []byte, headers []KV, buf []byte) (n int) {
-	buf[n] = ' '
-	n++
+func ResHdrs(status []byte, headers []KV, buf *[512][]byte) int {
+	buf[1] = []byte(" ")
 	//println(string(buf[:n]))
-	n += copy(buf[n:], status)
-	n += copy(buf[n:], rn)
+	buf[2] = status
+	buf[3] = []byte("\r\n")
 	//println(string(buf[:n]))
-	n += copy(buf[n:], "Date: ")
-	n += copy(buf[n:], dateHdr.Load()[:])
-	n += copy(buf[n:], rn)
+	buf[4] = []byte("Date: ")
+	buf[5] = dateHdr.Load()[:]
+	buf[6] = []byte("\r\n")
 	//println(string(buf[:n]))
+	n := 7
 	for _, header := range headers {
-		n += copy(buf[n:], header.Key)
-		n += copy(buf[n:], hdrSeparator)
-		n += copy(buf[n:], header.Val)
-		n += copy(buf[n:], rn)
+		buf[n] = header.Key
+		buf[n+1] = []byte(": ")
+		buf[n+2] = header.Val
+		buf[n+3] = []byte("\r\n")
+		n += 4
 	}
-	n += copy(buf[n:], rn)
+	buf[n] = []byte("\r\n")
 	//println(string(buf[:n]))
-	return
+	return n + 1
 }
