@@ -3,6 +3,7 @@ package httpreq
 import (
 	"bytes"
 	"errors"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -176,16 +177,31 @@ func BsInt(x uint32) (y [clLen]byte) {
 	return
 }
 
-var dateHdr atomic.Pointer[httpdateint64.HttpDate]
+const (
+	hdKey  = "Date: "
+	hdkLen = len(hdKey)
+)
+
+var (
+	httpDate1 = []byte(
+		hdKey + http.TimeFormat + rn,
+	)
+	httpDate2 = []byte(
+		hdKey + http.TimeFormat + rn,
+	)
+	dateHdr atomic.Pointer[[]byte]
+)
 
 func init() {
-	buf1 := new(httpdateint64.HttpDate)
-	buf2 := new(httpdateint64.HttpDate)
 	go func() {
 		for {
-			buf1, buf2 = buf2, buf1
-			*buf1 = httpdateint64.Conv(uint64(time.Now().Unix()))
-			dateHdr.Store(buf1)
+			httpDate1, httpDate2 =
+				httpDate2, httpDate1
+			httpDate := httpdateint64.Conv(
+				uint64(time.Now().Unix()),
+			)
+			copy(httpDate1[hdkLen:], httpDate[:])
+			dateHdr.Store(&httpDate1)
 			time.Sleep(time.Second)
 		}
 	}()
@@ -196,18 +212,14 @@ var (
 )
 
 func ResHdrs(headers [][]byte, buf *[512][]byte) (i int) {
-	//println(string(buf[:n]))
-	//println(string(buf[:n]))
-	buf[2] = []byte("Date: ")
-	buf[3] = dateHdr.Load()[:]
-	buf[4] = []byte("\r\n")
+	buf[2] = *dateHdr.Load()
 	//println(string(buf[:n]))
 	var header []byte
 	for i, header = range headers {
-		buf[i+5] = header
+		buf[i+3] = header
 
 	}
-	buf[i+6] = []byte("\r\n")
+	buf[i+4] = []byte("\r\n")
 	//println(string(buf[:n]))
-	return i + 7
+	return i + 5
 }
